@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strconv"
 	"testing"
 	"time"
 )
@@ -151,5 +152,113 @@ func TestSqlInjectionSave(t *testing.T) {
 		fmt.Println("Sukses Login", username)
 	} else {
 		fmt.Println("Gagal Login")
+	}
+}
+
+// Test sql parameter
+func TestExecSqlParameter(t *testing.T) {
+	db := GetConnection()
+	defer db.Close()
+
+	ctx := context.Background()
+
+	username := "ali'; DROP TABLE user; #"
+	password := "ali"
+
+	script := "INSERT INTO user(username, password) VALUES(?, ?)"
+	_, err := db.ExecContext(ctx, script, username, password)
+	if err != nil {
+		panic(err)
+	}
+
+	fmt.Println("Success insert new user")
+}
+
+// Test test auto increment
+func TestAutoIncrement(t *testing.T) {
+	db := GetConnection()
+	defer db.Close()
+
+	ctx := context.Background()
+
+	email := "ali@mail.com"
+	comment := "Test komen"
+
+	script := "INSERT INTO comments(email, comment) VALUES(?, ?)"
+	result, err := db.ExecContext(ctx, script, email, comment)
+	if err != nil {
+		panic(err)
+	}
+	insertId, err := result.LastInsertId()
+	if err != nil {
+		panic(err)
+	}
+
+	fmt.Println("Berhasil menambahkan comment baru dengan id", insertId)
+}
+
+// Test prepare statement
+func TestPrepareStatement(t *testing.T) {
+	db := GetConnection()
+	defer db.Close()
+
+	ctx := context.Background()
+	script := "INSERT INTO comments(email, comment) VALUES(?, ?)"
+	statement, err := db.PrepareContext(ctx, script)
+	if err != nil {
+		panic(err)
+	}
+	defer statement.Close()
+
+	for i := 0; i < 10; i++ {
+		email := "ali" + strconv.Itoa(i) + "@mail.com"
+		comment := "Komentar ke " + strconv.Itoa(i)
+
+		result, err := statement.ExecContext(ctx, email, comment)
+		if err != nil {
+			panic(err)
+		}
+		id, err := result.LastInsertId()
+		if err != nil {
+			panic(err)
+		}
+
+		fmt.Println("Comment Id : ", id)
+	}
+}
+
+// Test transaction
+func TestTransaction(t *testing.T) {
+	db := GetConnection()
+	defer db.Close()
+
+	ctx := context.Background()
+	tx, err := db.Begin()
+	if err != nil {
+		panic(err)
+	}
+
+	// do transaction
+	script := "INSERT INTO comments(email, comment) VALUES(?, ?)"
+	for i := 0; i < 10; i++ {
+		email := "ali" + strconv.Itoa(i) + "@mail.com"
+		comment := "Komentar ke " + strconv.Itoa(i)
+
+		result, err := tx.ExecContext(ctx, script, email, comment)
+		if err != nil {
+			panic(err)
+		}
+		id, err := result.LastInsertId()
+		if err != nil {
+			panic(err)
+		}
+
+		fmt.Println("Comment Id : ", id)
+	}
+
+	err = tx.Commit()
+	//err = tx.Rollback() 		// Rollback() -> untuk meniadakan query
+	if err != nil {
+		panic(err)
 	}
 }
